@@ -1,0 +1,70 @@
+#                             _|                _|                          _|
+# _|_|_|  _|_|      _|_|_|  _|_|_|_|  _|  _|_|      _|    _|        _|_|_|        _|_|
+# _|    _|    _|  _|    _|    _|      _|_|      _|    _|_|        _|    _|  _|  _|    _|
+# _|    _|    _|  _|    _|    _|      _|        _|  _|    _|      _|    _|  _|  _|    _|
+# _|    _|    _|    _|_|_|      _|_|  _|        _|  _|    _|        _|_|_|  _|    _|_|
+#
+# Trimaran VFX 2026 - Corto Morrow
+# docker-compose.yml - Docker compose file for matrix aio services deployment
+
+services:
+
+  nginx:
+    image: nginx:latest
+    container_name: matrix-nginx
+    ports:
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/certs:ro
+    depends_on:
+      - synapse
+      - element
+      - oidc
+    networks:
+      matrix:
+        aliases:
+          - auth.local
+          - matrix.local
+          - element.local
+
+  synapse:
+    build: ./synapse
+    container_name: synapse
+    volumes:
+      - ./synapse/homeserver.yaml:/data/synapse.yaml:ro
+      - synapse_data:/data
+    environment:
+      - SYNAPSE_REPORT_STATS=no
+      - SYNAPSE_CONFIG_PATH=/data/synapse.yaml
+    networks:
+      - matrix
+
+  element:
+    image: vectorim/element-web:latest
+    container_name: element
+    volumes:
+      - ./element/nginx.conf:/etc/nginx/templates/default.conf.template:ro
+      - ./element/config.json:/app/config.json:ro
+    restart: unless-stopped
+    depends_on:
+      - synapse
+    networks:
+      - matrix
+
+  oidc:
+    build: ./oidc
+    container_name: oidc
+    depends_on:
+      - synapse
+    volumes:
+      - ./certs:/app/certs:ro
+    networks:
+      - matrix
+    
+networks:
+  matrix:
+    name: matrix
+
+volumes:
+  synapse_data:

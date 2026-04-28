@@ -1,0 +1,69 @@
+#                             _|                _|                          _|
+# _|_|_|  _|_|      _|_|_|  _|_|_|_|  _|  _|_|      _|    _|        _|_|_|        _|_|
+# _|    _|    _|  _|    _|    _|      _|_|      _|    _|_|        _|    _|  _|  _|    _|
+# _|    _|    _|  _|    _|    _|      _|        _|  _|    _|      _|    _|  _|  _|    _|
+# _|    _|    _|    _|_|_|      _|_|  _|        _|  _|    _|        _|_|_|  _|    _|_|
+#
+# Trimaran VFX 2026 - Corto Morrow
+# homeserver.yaml - Synapse configuration file
+
+server_name: "matrix.local"
+public_baseurl: "https://matrix.local/"
+pid_file: /data/homeserver.pid
+listeners:
+  - bind_addresses:
+    - ::1
+    - 0.0.0.0
+    port: 8008
+    resources:
+    - compress: false
+      names:
+      - client
+      - federation
+    tls: false
+    type: http
+    x_forwarded: true
+database:
+  name: sqlite3
+  args:
+    database: /data/homeserver.db
+log_config: "/data/matrix.local.log.config"
+media_store_path: /data/media_store
+registration_shared_secret: "<registration_shared_secret>"
+macaroon_secret_key: "<macaroon_secret_key>"
+form_secret: "<form_secret>"
+signing_key_path: "/data/matrix.local.signing.key"
+trusted_key_servers:
+  - server_name: "matrix.org"
+report_stats: false
+enable_registration_without_verification: true
+suppress_key_server_warning: true
+
+# MatrixRTC / Element Call configuration
+experimental_features:
+  msc3266_enabled: true
+  msc4222_enabled: true
+
+max_event_delay_duration: 24h
+
+rc_message:
+  per_second: 0.5
+  burst_count: 30
+
+rc_delayed_event_mgmt:
+  per_second: 1
+  burst_count: 20
+
+oidc_providers:
+  - idp_id: oidc
+    idp_name: "Single Sign-On (SSO)"
+    issuer: "https://auth.local"
+    client_id: "synapse"
+    client_secret: "secret"
+    scopes: ["openid", "profile", "email"]
+    user_mapping_provider:
+      config:
+      localpart_template: "{{ user.preferred_username }}"
+
+
+# vim:ft=yaml

@@ -1,0 +1,16 @@
+{
+  "name": "poc_sso",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "oidc-provider": "^9.8.2"
+  }
+}
