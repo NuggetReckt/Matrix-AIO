@@ -1,5 +1,5 @@
 ```
-                                        _|                _|                          _|
+                                      _|                _|                          _|
           _|_|_|  _|_|      _|_|_|  _|_|_|_|  _|  _|_|      _|    _|        _|_|_|        _|_|
           _|    _|    _|  _|    _|    _|      _|_|      _|    _|_|        _|    _|  _|  _|    _|
           _|    _|    _|  _|    _|    _|      _|        _|  _|    _|      _|    _|  _|  _|    _|
@@ -122,4 +122,6 @@ Shared certificate authority and TLS-related files.
 - Node OIDC Provider docs: https://github.com/panva/node-oidc-provider/blob/HEAD/docs
 
 # Credits
+The Synapse/Element/Matrix Team
+
 Made by Corto Morrow for Trimaran VFX
