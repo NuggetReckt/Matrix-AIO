@@ -1,4 +1,4 @@
-//                             _|                _|                          _|
+//                              _|                _|                          _|
 //  _|_|_|  _|_|      _|_|_|  _|_|_|_|  _|  _|_|      _|    _|        _|_|_|        _|_|
 //  _|    _|    _|  _|    _|    _|      _|_|      _|    _|_|        _|    _|  _|  _|    _|
 //  _|    _|    _|  _|    _|    _|      _|        _|  _|    _|      _|    _|  _|  _|    _|
@@ -11,6 +11,7 @@ const https = require('https');
 const fs = require('fs');
 const {Provider} = require('oidc-provider');
 const express = require('express');
+const path = require('path');
 
 // The redirect URI must match the exact public-facing Synapse origin used by the browser.
 // If Synapse is served through HTTPS and a host name, this must be the public HTTPS URL,
@@ -162,20 +163,56 @@ app.route('/interaction/:uid')
 
         if (prompt.name === 'login') {
             return res.send(`
-        <form method="post" action="/interaction/${uid}">
-            <input name="username" />
-            <input name="password" type="password" />
-            <button type="submit">Login</button>
-        </form>
-        `);
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>TriMessenger - Login</title>
+                    <link rel="stylesheet" href="/assets/style.css">
+                </head>
+                <body>
+                    <form method="post" action="/interaction/${uid}">
+                        <div class="header">
+                            <h1>Welcome Back</h1>
+                            <h2>Login with your FXManager account</h2>
+                        </div>
+                        <div class="field">
+                            <label>Username</label>
+                            <input name="username" placeholder="Enter your username" required/>
+                        </div>
+                        <div class="field">
+                            <label>Password</label>
+                            <input name="password" type="password" placeholder="••••••••" required/>
+                        </div>
+                        <button type="submit">Login</button>
+                    </form>
+                </body>
+                </html>
+            `);
         }
 
         if (prompt.name === 'consent') {
             return res.send(`
-        <form method="post" action="/interaction/${uid}">
-            <button type="submit">Allow</button>
-        </form>
-        `);
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>TriMessenger - Authorize</title>
+                    <link rel="stylesheet" href="/assets/style.css">
+                </head>
+                <body>
+                    <form method="post" action="/interaction/${uid}">
+                        <div class="header">
+                            <h1>Authorize</h1>
+                            <h2>Allow access to your account to start chatting</h2>
+                        </div>
+                        <button type="submit">Allow</button>
+                    </form>
+                </body>
+                </html>
+            `);
         }
 
         return res.status(400).send('unknown prompt');
@@ -221,8 +258,7 @@ app.route('/interaction/:uid')
             const newGrantId = await grant.save();
 
             return provider.interactionFinished(
-                req,
-                res,
+                req, res,
                 {
                     consent: { grantId: newGrantId },
                 },
@@ -234,6 +270,8 @@ app.route('/interaction/:uid')
 
         return res.status(400).send('invalid interaction');
     });
+
+app.use('/assets', express.static(path.join(__dirname, '..', 'assets')));
 
 // mount OIDC
 app.use(provider.callback());
