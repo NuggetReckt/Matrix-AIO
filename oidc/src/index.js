@@ -170,10 +170,17 @@ app.route('/interaction/:uid')
                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
                     <title>TriMessenger - Login</title>
                     <link rel="stylesheet" href="/assets/style.css">
+                    <link rel="icon" type="image/png" href="/assets/img/favicon-96x96.png" sizes="96x96" />
+                    <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg" />
+                    <link rel="shortcut icon" href="/assets/img/favicon.ico" />
+                    <link rel="apple-touch-icon" sizes="180x180" href="/assets/img/apple-touch-icon.png" />
+                    <meta name="apple-mobile-web-app-title" content="TriMessenger" />
+                    <link rel="manifest" href="/assets/site.webmanifest" />
                 </head>
                 <body>
                     <form method="post" action="/interaction/${uid}">
                         <div class="header">
+                            <img src="/assets/img/logo_trimaran.png" alt="logo_trimaran" class="logo"/>
                             <h1>Welcome Back</h1>
                             <h2>Login with your FXManager account</h2>
                         </div>
@@ -201,10 +208,17 @@ app.route('/interaction/:uid')
                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
                     <title>TriMessenger - Authorize</title>
                     <link rel="stylesheet" href="/assets/style.css">
+                    <link rel="icon" type="image/png" href="/assets/img/favicon-96x96.png" sizes="96x96" />
+                    <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg" />
+                    <link rel="shortcut icon" href="/assets/img/favicon.ico" />
+                    <link rel="apple-touch-icon" sizes="180x180" href="/assets/img/apple-touch-icon.png" />
+                    <meta name="apple-mobile-web-app-title" content="TriMessenger" />
+                    <link rel="manifest" href="/assets/site.webmanifest" />
                 </head>
                 <body>
                     <form method="post" action="/interaction/${uid}">
                         <div class="header">
+                            <img src="/assets/img/logo_trimaran.png" alt="logo_trimaran" class="logo"/>
                             <h1>Authorize</h1>
                             <h2>Allow access to your account to start chatting</h2>
                         </div>

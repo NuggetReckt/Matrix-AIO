@@ -54,7 +54,8 @@ div {
     text-align: center;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    align-items: center;
+    gap: 4px;
     margin-bottom: 14px;
 }
 
@@ -72,6 +73,11 @@ div {
     font-weight: 400;
     color: var(--color-text-secondary);
     letter-spacing: 0.1px;
+}
+
+.logo {
+    width: 300px;
+    margin-bottom: 26px;
 }
 
 .field label {
