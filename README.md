@@ -26,7 +26,7 @@ Edit your `/etc/hosts` file (or equivalent on Windows):
 ```
 
 > [!IMPORTANT]  
-> If you update the hostnames in the /etc/hosts file, remember to also update:
+> If you update the hostnames in the /etc/hosts file, do not forget to also update:
 > - network aliases in docker compose
 > - Nginx server names in nginx/nginx.conf
 > - Element base-url for the synapse matrix server in element/config.json
@@ -57,7 +57,7 @@ Edit your `/etc/hosts` file (or equivalent on Windows):
   ```
 
 > [!WARNING]  
-> This setup relies on locally trusted certificates. It means that this is not recommanded for a production-ready setup. For a production setup, I recommend using Certbot (Let's encrypt) or Cloudflare.
+> This setup relies on locally trusted certificates. It means that this is not recommanded for a production-ready setup. For a production setup, please consider using Certbot (Let's encrypt) or Cloudflare.
 
 ## 3. Configuration
 
@@ -76,7 +76,7 @@ Ensure consistency across:
 Run the full environment:
 
 ```bash
-docker compose up --build
+docker compose up --build -d
 ```
 
 Services included:
