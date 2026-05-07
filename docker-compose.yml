@@ -71,6 +71,10 @@ services:
         condition: service_healthy
     volumes:
       - ./certs:/app/certs:ro
+    environment:
+      - OIDC_SYNAPSE_BASEURL=https://api.dev-matrix.trimaran.com
+      - OIDC_PROVIDER_BASEURL=https://auth.dev-matrix.trimaran.com
+      - OIDC_FXMANAGER_BASEURL="https://dev-fxmanager.trimaran.com"
     networks:
       - matrix
     

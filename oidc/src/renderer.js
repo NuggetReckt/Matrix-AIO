@@ -47,7 +47,7 @@ function renderPage(title, bodyHtml, errorMessage) {
     `;
 }
 
-function renderLoginPage(uid, error, username = '') {
+function renderLoginPage(uid, error, email = '') {
     return renderPage('TriMessenger - Login', `
             <form method="post" action="/interaction/${escapeHtml(uid)}">
                 <div class="header">
@@ -56,8 +56,8 @@ function renderLoginPage(uid, error, username = '') {
                     <h2>Login with your FXManager account</h2>
                 </div>
                 <div class="field">
-                    <label>Username</label>
-                    <input name="username" placeholder="Enter your username" value="${escapeHtml(username)}" required/>
+                    <label>Email</label>
+                    <input name="email" type="email" placeholder="Enter your email" value="${escapeHtml(email)}" required/>
                 </div>
                 <div class="field">
                     <label>Password</label>
