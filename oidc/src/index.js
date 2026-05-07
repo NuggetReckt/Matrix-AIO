@@ -1,4 +1,4 @@
-//                             _|                _|                          _|
+//                              _|                _|                          _|
 //  _|_|_|  _|_|      _|_|_|  _|_|_|_|  _|  _|_|      _|    _|        _|_|_|        _|_|
 //  _|    _|    _|  _|    _|    _|      _|_|      _|    _|_|        _|    _|  _|  _|    _|
 //  _|    _|    _|  _|    _|    _|      _|        _|  _|    _|      _|    _|  _|  _|    _|
@@ -9,8 +9,10 @@
 
 const https = require('https');
 const fs = require('fs');
-const {Provider} = require('oidc-provider');
+const {Provider, errors: { SessionNotFound, InteractionNotFound }} = require('oidc-provider');
 const express = require('express');
+const path = require('path');
+const { renderLoginPage, renderConsentPage, renderGenericErrorPage } = require('./renderer');
 
 // The redirect URI must match the exact public-facing Synapse origin used by the browser.
 // If Synapse is served through HTTPS and a host name, this must be the public HTTPS URL,
@@ -23,6 +25,23 @@ const HOST = process.env.OIDC_HOST || '0.0.0.0';
 const app = express();
 
 app.use(express.json());
+
+function getErrorMessage(errorKey) {
+    switch (errorKey) {
+        case 'invalid_credentials':
+            return 'Invalid credentials.';
+        case 'missing_accountId':
+            return 'Missing accountId.';
+        case 'invalid_interaction':
+            return 'Invalid interaction.';
+        case 'unknown_prompt':
+            return 'Unknown prompt.';
+        case 'session_not_found':
+            return 'Session not found or has expired.';
+        default:
+            return '';
+    }
+}
 
 // config OIDC
 const configuration = {
@@ -45,7 +64,6 @@ const configuration = {
         email: ['email'],
     },
 
-    // désactive les features inutiles au début
     features: {
         devInteractions: {enabled: false},
     },
@@ -94,7 +112,7 @@ const provider = new Provider(PROVIDER_BASEURL, {
         },
     },
     ttl: {
-        Interaction: 3600,
+        Interaction: 3600, // 1 hour in seconds
         Session: 86400, // 24 hours in seconds
     },
 });
@@ -108,17 +126,6 @@ const users = [
 let nextId = users.length + 1;
 
 app.enable('trust proxy');
-
-// FOR DEBUGGING PURPOSES ONLY, TO SEE THE PROTOCOL USED BY THE REQUEST
-// app.use((req, res, next) => {
-//     console.log({
-//         protocol: req.protocol,
-//         secure: req.secure,
-//         host: req.headers.host,
-//         forwarded: req.headers['x-forwarded-proto']
-//     });
-//     next();
-// });
 
 app.get('/users', (req, res) => {
     res.json(users);
@@ -158,85 +165,101 @@ app.delete('/user/:userId', (req, res) => {
 
 app.route('/interaction/:uid')
     .get(async (req, res) => {
-        const { uid, prompt } = await provider.interactionDetails(req, res);
+        try {
+            const { uid, prompt } = await provider.interactionDetails(req, res);
+            const errorMessage = getErrorMessage(req.query.error);
+            const username = req.query.username || '';
 
-        if (prompt.name === 'login') {
-            return res.send(`
-        <form method="post" action="/interaction/${uid}">
-            <input name="username" />
-            <input name="password" type="password" />
-            <button type="submit">Login</button>
-        </form>
-        `);
+            if (prompt.name === 'login') {
+                return res.send(renderLoginPage(uid, errorMessage, username));
+            }
+
+            if (prompt.name === 'consent') {
+                return res.send(renderConsentPage(uid, errorMessage));
+            }
+
+            return res.status(400).send(renderGenericErrorPage(getErrorMessage('unknown_prompt')));
+        } catch (err) {
+            if (err instanceof SessionNotFound || err instanceof InteractionNotFound) {
+                return res.status(400).send(renderGenericErrorPage(getErrorMessage('session_not_found')));
+            }
+            return res.status(500).send(renderGenericErrorPage('An unexpected error occurred.'));
         }
-
-        if (prompt.name === 'consent') {
-            return res.send(`
-        <form method="post" action="/interaction/${uid}">
-            <button type="submit">Allow</button>
-        </form>
-        `);
-        }
-
-        return res.status(400).send('unknown prompt');
     })
     .post(express.urlencoded({ extended: false }), async (req, res) => {
-        const { prompt, params, session, uid, grantId } =
-            await provider.interactionDetails(req, res);
+        try {
+            const { prompt, params, session, uid, grantId } = await provider.interactionDetails(req, res);
 
-        if (prompt.name === 'login') {
-            const user = users.find(
-                u => u.username === req.body.username && u.password === req.body.password
-            );
+            if (prompt.name === 'login') {
+                const user = users.find(
+                    u => u.username === req.body.username && u.password === req.body.password
+                );
 
-            if (!user) return res.status(401).send('invalid credentials');
-
-            return provider.interactionFinished(req, res, {
-                login: { accountId: user.id.toString() },
-            });
-        }
-
-        if (prompt.name === 'consent') {
-            let grant;
-
-            if (grantId) {
-                grant = await provider.Grant.find(grantId);
-            } else {
-                const accountId = session?.accountId;
-
-                if (!accountId) {
-                    return res.status(400).send('missing accountId');
+                if (!user) {
+                    return res.redirect(`/interaction/${uid}?error=invalid_credentials&username=${encodeURIComponent(req.body.username || '')}`);
                 }
 
-                grant = new provider.Grant({
-                    accountId,
-                    clientId: params.client_id,
+                return provider.interactionFinished(req, res, {
+                    login: { accountId: user.id.toString() },
                 });
             }
 
-            grant.addOIDCScope('openid');
-            grant.addOIDCScope('profile');
-            grant.addOIDCScope('email');
+            if (prompt.name === 'consent') {
+                let grant;
 
-            const newGrantId = await grant.save();
+                if (grantId) {
+                    grant = await provider.Grant.find(grantId);
+                } else {
+                    const accountId = session?.accountId;
 
-            return provider.interactionFinished(
-                req,
-                res,
-                {
-                    consent: { grantId: newGrantId },
-                },
-                {
-                    mergeWithLastSubmission: true,
+                    if (!accountId) {
+                        return res.redirect(`/interaction/${uid}?error=missing_accountId`);
+                    }
+
+                    grant = new provider.Grant({
+                        accountId,
+                        clientId: params.client_id,
+                    });
                 }
-            );
-        }
 
-        return res.status(400).send('invalid interaction');
+                grant.addOIDCScope('openid');
+                grant.addOIDCScope('profile');
+                grant.addOIDCScope('email');
+
+                const newGrantId = await grant.save();
+
+                return provider.interactionFinished(req, res,
+                    {
+                        consent: { grantId: newGrantId },
+                    },
+                    {
+                        mergeWithLastSubmission: true,
+                    }
+                );
+            }
+
+            return res.redirect(`/interaction/${uid}?error=invalid_interaction`);
+        } catch (err) {
+            if (err instanceof SessionNotFound || err instanceof InteractionNotFound) {
+                return res.status(400).send(renderGenericErrorPage(getErrorMessage('session_not_found')));
+            }
+            return res.status(500).send(renderGenericErrorPage('An unexpected error occurred.'));
+        }
     });
+
+// serve static assets
+app.use('/assets', express.static(path.join(__dirname, '..', 'assets')));
 
 // mount OIDC
 app.use(provider.callback());
+
+// middleware for handling interaction errors
+app.use((err, _req, _res, next) => {
+    if (err instanceof SessionNotFound || err instanceof InteractionNotFound) {
+        return _res.status(400).send(renderGenericErrorPage(getErrorMessage('session_not_found')));
+    }
+    next(err);
+});
 
 // start app
 https.createServer({

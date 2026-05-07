@@ -1,5 +1,5 @@
 ```
-                                        _|                _|                          _|
+                                      _|                _|                          _|
           _|_|_|  _|_|      _|_|_|  _|_|_|_|  _|  _|_|      _|    _|        _|_|_|        _|_|
           _|    _|    _|  _|    _|    _|      _|_|      _|    _|_|        _|    _|  _|  _|    _|
           _|    _|    _|  _|    _|    _|      _|        _|  _|    _|      _|    _|  _|  _|    _|
@@ -25,9 +25,14 @@ Edit your `/etc/hosts` file (or equivalent on Windows):
 127.0.0.1 element.local
 ```
 
-## 2. Certificates
+> [!IMPORTANT]  
+> If you update the hostnames in the /etc/hosts file, do not forget to also update:
+> - network aliases in docker compose
+> - Nginx server names in nginx/nginx.conf
+> - Element base-url for the synapse matrix server in element/config.json
+> - Synapse public_baseurl and issuer URL for the oidc provider
 
-This setup relies on locally trusted certificates.
+## 2. Certificates
 
 - Generate certificates using mkcert:
   ```bash
@@ -51,6 +56,9 @@ This setup relies on locally trusted certificates.
   cp certs/rootCA.pem synapse
   ```
 
+> [!WARNING]  
+> This setup relies on locally trusted certificates. It means that this is not recommanded for a production-ready setup. For a production setup, please consider using Certbot (Let's encrypt) or Cloudflare.
+
 ## 3. Configuration
 
 Adjust configuration files as needed:
@@ -68,7 +76,7 @@ Ensure consistency across:
 Run the full environment:
 
 ```bash
-docker compose up --build
+docker compose up --build -d
 ```
 
 Services included:
@@ -122,4 +130,6 @@ Shared certificate authority and TLS-related files.
 - Node OIDC Provider docs: https://github.com/panva/node-oidc-provider/blob/HEAD/docs
 
 # Credits
+The Synapse/Element/Matrix Team
+
 Made by Corto Morrow for Trimaran VFX

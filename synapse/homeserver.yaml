@@ -36,8 +36,11 @@ signing_key_path: "/data/matrix.local.signing.key"
 trusted_key_servers:
   - server_name: "matrix.org"
 report_stats: false
-enable_registration_without_verification: true
+enable_registration_without_verification: false
+enable_registration: false
 suppress_key_server_warning: true
+enable_media_repo: true
+max_upload_size: 50M
 
 # MatrixRTC / Element Call configuration
 experimental_features:
@@ -63,7 +66,9 @@ oidc_providers:
     scopes: ["openid", "profile", "email"]
     user_mapping_provider:
       config:
-      localpart_template: "{{ user.preferred_username }}"
+        localpart_template: "{{ user.preferred_username }}"
+        display_name_template: "{{ user.preferred_username }}"
+        email_template: "{{ user.email }}"
 
 
 # vim:ft=yaml
