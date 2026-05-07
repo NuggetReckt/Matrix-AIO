@@ -25,9 +25,14 @@ Edit your `/etc/hosts` file (or equivalent on Windows):
 127.0.0.1 element.local
 ```
 
-## 2. Certificates
+> [!IMPORTANT]  
+> If you update the hostnames in the /etc/hosts file, remember to also update:
+> - network aliases in docker compose
+> - Nginx server names in nginx/nginx.conf
+> - Element base-url for the synapse matrix server in element/config.json
+> - Synapse public_baseurl and issuer URL for the oidc provider
 
-This setup relies on locally trusted certificates.
+## 2. Certificates
 
 - Generate certificates using mkcert:
   ```bash
@@ -50,6 +55,9 @@ This setup relies on locally trusted certificates.
   cp /home/<user>/.local/share/mkcert/rootCA.pem certs/
   cp certs/rootCA.pem synapse
   ```
+
+> [!WARNING]  
+> This setup relies on locally trusted certificates. It means that this is not recommanded for a production-ready setup. For a production setup, I recommend using Certbot (Let's encrypt) or Cloudflare.
 
 ## 3. Configuration
 
