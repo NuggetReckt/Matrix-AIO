@@ -7,5 +7,10 @@
     },
     "brand": "Element",
     "disable_guests": true,
-    "default_theme": "dark"
+    "default_theme": "dark",
+    "disable_login_language_selector": true,
+    "sso_redirect_options": {
+        "immediate": true,
+        "on_welcome_page": true
+    }
 }
