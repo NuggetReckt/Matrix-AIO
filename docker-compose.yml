@@ -77,7 +77,7 @@ services:
       - OIDC_FXMANAGER_BASEURL="https://dev-fxmanager.trimaran.com"
     networks:
       - matrix
-    
+
 networks:
   matrix:
     name: matrix
