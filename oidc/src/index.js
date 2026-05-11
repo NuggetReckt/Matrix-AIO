@@ -14,15 +14,14 @@ const axios = require('axios');
 const express = require('express');
 const path = require('path');
 const { renderLoginPage, renderConsentPage, renderGenericErrorPage } = require('./renderer');
+const FileAdapter = require('./fileAdapter');
 
-// The redirect URI must match the exact public-facing Synapse origin used by the browser.
-// If Synapse is served through HTTPS and a host name, this must be the public HTTPS URL,
-// not the internal HTTP IP address.
 const SYNAPSE_BASEURL = process.env.OIDC_SYNAPSE_BASEURL || 'https://matrix.local';
 const PROVIDER_BASEURL = process.env.OIDC_PROVIDER_BASEURL || 'https://auth.local';
 const FXMANAGER_BASEURL = process.env.OIDC_FXMANAGER_BASEURL || 'https://fxmanager.local';
 const PORT = process.env.OIDC_PORT || 3000;
 const HOST = process.env.OIDC_HOST || '0.0.0.0';
+const DEBUG = process.env.OIDC_DEBUG || 'false';
 
 const app = express();
 const client = axios.create({
@@ -73,13 +72,33 @@ const configuration = {
     features: {
         devInteractions: {enabled: false},
     },
+
+    adapter: (name) => new FileAdapter(name),
+
+    jwks: {
+        keys: [
+            {
+                kty: 'RSA',
+                n: '',
+                e: '',
+                d: '',
+                p: '',
+                q: '',
+                dp: '',
+                dq: '',
+                qi: '',
+                alg: 'RS256',
+                kid: 'key-1',
+                use: 'sig'
+            }
+        ]
+    },
 };
 
 const accountCache = new Map();
 
 configuration.findAccount = async (ctx, id) => {
     const account = accountCache.get(id) || { email: id, username: id };
-    console.log('[FIND ACCOUNT] id:', id, 'account:', account, 'params:', ctx.oidc?.params);
 
     return {
         accountId: id,
@@ -123,6 +142,10 @@ const provider = new Provider(PROVIDER_BASEURL, {
     ttl: {
         Interaction: 3600, // 1 hour in seconds
         Session: 86400, // 24 hours in seconds
+        AccessToken: 3600, // 1 hour in seconds
+        IdToken: 3600, // 1 hour in seconds
+        AuthorizationCode: 600, // 10 minutes in seconds
+        Grant: 86400, // 24 hours in seconds
     },
 });
 
@@ -146,8 +169,6 @@ app.route('/interaction/:uid')
             const { uid, prompt } = await provider.interactionDetails(req, res);
             const errorMessage = getErrorMessage(req.query.error);
             const email = req.query.email || '';
-
-            console.log('[INTERACTION GET] uid:', uid, 'prompt:', prompt.name);
 
             if (prompt.name === 'login') {
                 return res.send(renderLoginPage(uid, errorMessage, email));
@@ -180,14 +201,11 @@ app.route('/interaction/:uid')
                     });
 
                     authResponse = response.data;
-                    console.log('[LOGIN] Auth response:', authResponse);
                 } catch (err) {
-                    console.error('[LOGIN] Auth request failed:', err.message, err.code);
                     return res.redirect(`/interaction/${uid}?error=invalid_credentials&email=${encodeURIComponent(req.body.email || '')}`);
                 }
 
                 if (!authResponse || authResponse.status !== 'allowed') {
-                    console.log('[LOGIN] Auth denied or no response:', authResponse);
                     return res.redirect(`/interaction/${uid}?error=invalid_credentials&email=${encodeURIComponent(req.body.email || '')}`);
                 }
 
@@ -199,8 +217,6 @@ app.route('/interaction/:uid')
                     email: accountEmail,
                     username: preferredUsername,
                 });
-
-                console.log('[LOGIN] Session before finish:', { uid, accountId, preferredUsername, session });
 
                 return provider.interactionFinished(req, res, {
                     login: { accountId: accountId.toString() },
@@ -214,10 +230,8 @@ app.route('/interaction/:uid')
                     grant = await provider.Grant.find(grantId);
                 } else {
                     const accountId = session?.accountId;
-                    console.log('[CONSENT] Session details:', { uid, accountId, grantId, sessionExists: !!session });
 
                     if (!accountId) {
-                        console.error('[CONSENT] Missing accountId in session');
                         return res.redirect(`/interaction/${uid}?error=missing_accountId`);
                     }
 
@@ -232,8 +246,6 @@ app.route('/interaction/:uid')
                 grant.addOIDCScope('email');
 
                 const newGrantId = await grant.save();
-
-                console.log('[CONSENT] Interaction finished with grantId:', newGrantId);
 
                 return provider.interactionFinished(req, res,
                     {
@@ -257,8 +269,12 @@ app.route('/interaction/:uid')
 // serve static assets
 app.use('/assets', express.static(path.join(__dirname, '..', 'assets')));
 
-// log token/userinfo/authorize requests before provider callback
+// debug token/userinfo/authorize requests before provider callback
 app.use((req, res, next) => {
+    if (DEBUG !== 'true') {
+        return next();
+    }
+
     if (['/authorize', '/token', '/userinfo'].includes(req.path)) {
         console.log('[OIDC REQUEST]', req.method, req.path, {
             query: req.query,
