@@ -82,14 +82,14 @@ Generate JWKs for the OIDC provider:
       keys: [
           {
               kty: 'RSA',
-              n: '', // To update
-              e: '', // To update
-              d: '', // To update
-              p: '', // To update
-              q: '', // To update
-              dp: '', // To update
-              dq: '', // To update
-              qi: '', // To update
+              n: '',
+              e: ''
+              d: '',
+              p: '',
+              q: '',
+              dp: '',
+              dq: '',
+              qi: '',
               alg: 'RS256',
               kid: 'key-1',
               use: 'sig'
