@@ -77,25 +77,28 @@ Generate JWKs for the OIDC provider:
   node generate-keys.js
   ```
 - And copy/paste the returned values in the oidc configuration:
-  ```json
-  jwks: {
-      keys: [
-          {
-              kty: 'RSA',
-              n: '',
-              e: ''
-              d: '',
-              p: '',
-              q: '',
-              dp: '',
-              dq: '',
-              qi: '',
-              alg: 'RS256',
-              kid: 'key-1',
-              use: 'sig'
-          }
-      ]
-  }
+  ```js
+  const configuration = {
+      // [...]
+      jwks: {
+          keys: [
+              {
+                  kty: 'RSA',
+                  n: '',
+                  e: '',
+                  d: '',
+                  p: '',
+                  q: '',
+                  dp: '',
+                  dq: '',
+                  qi: '',
+                  alg: 'RS256',
+                  kid: 'key-1',
+                  use: 'sig'
+              }
+          ]
+      }
+  };
   ```
 
 ## 4. Start the Stack
