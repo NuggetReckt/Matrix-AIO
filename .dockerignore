@@ -1,3 +1,4 @@
 .gitignore
 oidc/node_modules/
+oidc/data
 oidc/.gitignore

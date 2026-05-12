@@ -9,20 +9,25 @@
 
 const https = require('https');
 const fs = require('fs');
-const {Provider, errors: { SessionNotFound, InteractionNotFound }} = require('oidc-provider');
+const { Provider, errors: { SessionNotFound, InteractionNotFound }} = require('oidc-provider');
+const axios = require('axios');
 const express = require('express');
 const path = require('path');
 const { renderLoginPage, renderConsentPage, renderGenericErrorPage } = require('./renderer');
+const FileAdapter = require('./fileAdapter');
 
-// The redirect URI must match the exact public-facing Synapse origin used by the browser.
-// If Synapse is served through HTTPS and a host name, this must be the public HTTPS URL,
-// not the internal HTTP IP address.
 const SYNAPSE_BASEURL = process.env.OIDC_SYNAPSE_BASEURL || 'https://matrix.local';
 const PROVIDER_BASEURL = process.env.OIDC_PROVIDER_BASEURL || 'https://auth.local';
+const FXMANAGER_BASEURL = process.env.OIDC_FXMANAGER_BASEURL || 'https://fxmanager.local';
 const PORT = process.env.OIDC_PORT || 3000;
 const HOST = process.env.OIDC_HOST || '0.0.0.0';
+const DEBUG = process.env.OIDC_DEBUG || 'false';
 
 const app = express();
+const client = axios.create({
+    baseURL: FXMANAGER_BASEURL,
+    timeout: 1000
+});
 
 app.use(express.json());
 
@@ -59,7 +64,7 @@ const configuration = {
 
     // mapping des claims
     claims: {
-        openid: ['sub'],
+        openid: ['sub', 'preferred_username'],
         profile: ['preferred_username'],
         email: ['email'],
     },
@@ -67,20 +72,41 @@ const configuration = {
     features: {
         devInteractions: {enabled: false},
     },
+
+    adapter: (name) => new FileAdapter(name),
+
+    jwks: {
+        keys: [
+            {
+                kty: 'RSA',
+                n: '',
+                e: '',
+                d: '',
+                p: '',
+                q: '',
+                dp: '',
+                dq: '',
+                qi: '',
+                alg: 'RS256',
+                kid: 'key-1',
+                use: 'sig'
+            }
+        ]
+    },
 };
 
-configuration.findAccount = async (ctx, id) => {
-    const user = users.find(u => u.id.toString() === id);
+const accountCache = new Map();
 
-    if (!user) return undefined;
+configuration.findAccount = async (ctx, id) => {
+    const account = accountCache.get(id) || { email: id, username: id };
 
     return {
         accountId: id,
         async claims() {
             return {
                 sub: id.toString(),
-                preferred_username: user.username,
-                email: user.email
+                preferred_username: account.username,
+                email: account.email
             };
         }
     };
@@ -103,75 +129,49 @@ const provider = new Provider(PROVIDER_BASEURL, {
     cookies: {
         keys: ['super_secret_key_1', 'super_secret_key_2'],
         long: {
-            sameSite: 'lax',
+            sameSite: 'none',
             secure: true,
+            httpOnly: true,
         },
         short: {
-            sameSite: 'lax',
+            sameSite: 'none',
             secure: true,
+            httpOnly: true,
         },
     },
     ttl: {
         Interaction: 3600, // 1 hour in seconds
         Session: 86400, // 24 hours in seconds
+        AccessToken: 3600, // 1 hour in seconds
+        IdToken: 3600, // 1 hour in seconds
+        AuthorizationCode: 600, // 10 minutes in seconds
+        Grant: 86400, // 24 hours in seconds
     },
 });
 
-// Fake users
-const users = [
-    {id: 1, username: 'john', email: 'john@test.local', password: 'test'},
-    {id: 2, username: 'marie', email: 'marie@test.local', password: 'test'},
-    {id: 3, username: 'corto', email: 'corto@test.local', password: 'test'}
-]
-let nextId = users.length + 1;
-
 app.enable('trust proxy');
 
-app.get('/users', (req, res) => {
-    res.json(users);
-})
+// Helper function to convert email to valid Matrix localpart
+function emailToMatrixLocalpart(email) {
+    const local = String(email || '')
+        .split('@')[0]
+        .toLowerCase()
+        .replace(/[^a-z0-9._=-]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^[_\.=-]+|[_\.=-]+$/g, '');
 
-app.get('/user/:userId', (req, res) => {
-    const user = users.find(user => user.id === parseInt(req.params['userId']));
-
-    if (!user) {
-        res.status(404).json({message: 'User not found'});
-        return;
-    }
-    res.json(user);
-})
-
-app.post('/user', (req, res) => {
-    const user = {
-        id: nextId,
-        username: req.body.username,
-        password: req.body.password
-    }
-    users.push(user);
-    res.status(200).json({userId: user.id});
-    nextId++;
-})
-
-app.delete('/user/:userId', (req, res) => {
-    const user = users.find(user => user.id === parseInt(req.params['userId']));
-    if (!user) {
-        res.status(404).json({message: 'User not found'});
-        return;
-    }
-    users.splice(users.indexOf(user), 1);
-    res.status(200).json({message: 'User deleted'});
-})
-
+    return local || 'user';
+}
 
 app.route('/interaction/:uid')
     .get(async (req, res) => {
         try {
             const { uid, prompt } = await provider.interactionDetails(req, res);
             const errorMessage = getErrorMessage(req.query.error);
-            const username = req.query.username || '';
+            const email = req.query.email || '';
 
             if (prompt.name === 'login') {
-                return res.send(renderLoginPage(uid, errorMessage, username));
+                return res.send(renderLoginPage(uid, errorMessage, email));
             }
 
             if (prompt.name === 'consent') {
@@ -191,16 +191,35 @@ app.route('/interaction/:uid')
             const { prompt, params, session, uid, grantId } = await provider.interactionDetails(req, res);
 
             if (prompt.name === 'login') {
-                const user = users.find(
-                    u => u.username === req.body.username && u.password === req.body.password
-                );
+                let authResponse;
 
-                if (!user) {
-                    return res.redirect(`/interaction/${uid}?error=invalid_credentials&username=${encodeURIComponent(req.body.username || '')}`);
+                try {
+                    const response = await client.post('/process_auth.php', {
+                        action: 'verify_login',
+                        email: req.body.email,
+                        password: req.body.password,
+                    });
+
+                    authResponse = response.data;
+                } catch (err) {
+                    return res.redirect(`/interaction/${uid}?error=invalid_credentials&email=${encodeURIComponent(req.body.email || '')}`);
                 }
 
+                if (!authResponse || authResponse.status !== 'allowed') {
+                    return res.redirect(`/interaction/${uid}?error=invalid_credentials&email=${encodeURIComponent(req.body.email || '')}`);
+                }
+
+                const accountEmail = authResponse.email || req.body.email;
+                const preferredUsername = emailToMatrixLocalpart(authResponse.username || accountEmail);
+                const accountId = preferredUsername;
+
+                accountCache.set(accountId, {
+                    email: accountEmail,
+                    username: preferredUsername,
+                });
+
                 return provider.interactionFinished(req, res, {
-                    login: { accountId: user.id.toString() },
+                    login: { accountId: accountId.toString() },
                 });
             }
 
@@ -249,6 +268,26 @@ app.route('/interaction/:uid')
 
 // serve static assets
 app.use('/assets', express.static(path.join(__dirname, '..', 'assets')));
+
+// debug token/userinfo/authorize requests before provider callback
+app.use((req, res, next) => {
+    if (DEBUG !== 'true') {
+        return next();
+    }
+
+    if (['/authorize', '/token', '/userinfo'].includes(req.path)) {
+        console.log('[OIDC REQUEST]', req.method, req.path, {
+            query: req.query,
+            body: req.body,
+            headers: {
+                host: req.headers.host,
+                referer: req.headers.referer,
+                origin: req.headers.origin,
+            },
+        });
+    }
+    next();
+});
 
 // mount OIDC
 app.use(provider.callback());
