@@ -34,7 +34,7 @@ Edit your `/etc/hosts` file (or equivalent on Windows):
 
 ## 2. Certificates
 
-- Generate certificates using mkcert:
+1. Generate certificates using mkcert:
   ```bash
   mkcert -install
   mkcert auth.local matrix.local element.local
@@ -44,13 +44,13 @@ Edit your `/etc/hosts` file (or equivalent on Windows):
   - `matrix.local+2.pem` to be renamed to `fullchain.pem`
   - `matrix.local+2-key.pem` to be rename to `privkey.pem`
 
-- Create a directory and move those files into:
+2. Create a directory and move those files into:
   ```bash
   mkdir certs
   mv *.pem certs/
   ```
 
-- Finally, copy the rootCA certificate into the `certs` directory and `synapse`:
+3. Finally, copy the rootCA certificate into the `certs` directory and `synapse`:
   ```bash
   cp /home/<user>/.local/share/mkcert/rootCA.pem certs/
   cp certs/rootCA.pem synapse
@@ -61,45 +61,55 @@ Edit your `/etc/hosts` file (or equivalent on Windows):
 
 ## 3. Configuration
 
-Adjust configuration files as needed:
-- Synapse configuration (homeserver.yaml)
-- OIDC provider environment variables (synapse URL, provider base-URL) in docker-compose.yml
-- Reverse proxy configuration (NGINX)
+1. Adjust configuration files as needed:
+  - Synapse configuration (homeserver.yaml)
+  - OIDC provider environment variables (synapse URL, provider base-URL) in docker-compose.yml
+  - Reverse proxy configuration (NGINX)
 
-Ensure consistency across:
-- Domain names
-- HTTPS endpoints
-- Redirect URIs
+2. Ensure consistency across:
+  - Domain names
+  - HTTPS endpoints
+  - Redirect URIs
 
-Generate JWKs for the OIDC provider:
-- in the `oidc/` directory, run the following command:
+3. Generate JWKs for the OIDC provider:
+  - in the `oidc/` directory, run the following command:
+    ```bash
+    node generate-keys.js
+    ```
+  - And copy/paste the returned values in the oidc configuration:
+    ```js
+    const configuration = {
+        // [...]
+        jwks: {
+            keys: [
+                {
+                    kty: 'RSA',
+                    n: '',
+                    e: '',
+                    d: '',
+                    p: '',
+                    q: '',
+                    dp: '',
+                    dq: '',
+                    qi: '',
+                    alg: 'RS256',
+                    kid: 'key-1',
+                    use: 'sig'
+                }
+            ]
+        }
+    };
+    ```
+
+4. Generate synapse configuration files:
   ```bash
-  node generate-keys.js
+  docker run -it --rm \
+    --mount type=volume,src=matrix-aio_synapse_data,dst=/data \
+    -e SYNAPSE_SERVER_NAME=matrix.local \
+    -e SYNAPSE_REPORT_STATS=no \
+    matrixdotorg/synapse:latest generate
   ```
-- And copy/paste the returned values in the oidc configuration:
-  ```js
-  const configuration = {
-      // [...]
-      jwks: {
-          keys: [
-              {
-                  kty: 'RSA',
-                  n: '',
-                  e: '',
-                  d: '',
-                  p: '',
-                  q: '',
-                  dp: '',
-                  dq: '',
-                  qi: '',
-                  alg: 'RS256',
-                  kid: 'key-1',
-                  use: 'sig'
-              }
-          ]
-      }
-  };
-  ```
+
 
 ## 4. Start the Stack
 
@@ -123,6 +133,8 @@ Services included:
 │   ├── Dockerfile
 │   ├── homeserver.yaml
 │   ├── rootCA.pem
+│   ├── modules/
+│   │   └── on_register.py
 ├── oidc/
 │   ├── Dockerfile
 │   ├── index.js

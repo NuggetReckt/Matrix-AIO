@@ -70,5 +70,9 @@ oidc_providers:
         display_name_template: "{{ user.preferred_username }}"
         email_template: "{{ user.email }}"
 
+modules:
+  - module: on_register.OnRegisterWebhook
+    config:
+      webhook_url: "https://dev-fxmanager.trimaran.com/webhook/on_register"
 
 # vim:ft=yaml
