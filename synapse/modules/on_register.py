@@ -15,13 +15,12 @@ class OnRegisterWebhook:
 
     async def on_user_registration(self, user_id: str):
         logger.info(f"on_user_registration triggered for {user_id}")
-        username = user_id.split(":")[0].lstrip("@")
         try:
             response = await self._api.http_client.post_json_get_json(
                 self._webhook_url,
                 post_json={
-                    "user": {"username": username},
-                    "action": "update_user_projects"
+                    "user_id": user_id,
+                    "action": "init_user_projects"
                 }
             )
             logger.info(f"Webhook sent successfully: {response}")
