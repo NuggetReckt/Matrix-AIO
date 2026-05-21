@@ -110,6 +110,10 @@ Edit your `/etc/hosts` file (or equivalent on Windows):
     matrixdotorg/synapse:latest generate
   ```
 
+5. Copy/paste the `registration_shared_secret`, `macaroon_secret_key`, `form_secret` values of the generated config file into your homeserver.yaml:
+  ```bash
+  grep -E "macaroon_secret_key|form_secret|registration_shared_secret" /var/lib/docker/volumes/matrix-aio_synapse_data/_data/homeserver.yaml
+  ```
 
 ## 4. Start the Stack
 
