@@ -23,6 +23,9 @@ const PORT = process.env.OIDC_PORT || 3000;
 const HOST = process.env.OIDC_HOST || '0.0.0.0';
 const DEBUG = process.env.OIDC_DEBUG || 'false';
 
+const file = path.join(__dirname, '../data', 'secrets.json');
+const secrets = JSON.parse(fs.readFileSync(file, 'utf-8'));
+
 const app = express();
 const client = axios.create({
     baseURL: FXMANAGER_BASEURL,
@@ -78,15 +81,15 @@ const configuration = {
     jwks: {
         keys: [
             {
-                kty: 'RSA',
-                n: '',
-                e: '',
-                d: '',
-                p: '',
-                q: '',
-                dp: '',
-                dq: '',
-                qi: '',
+                kty: secrets.private.kty,
+                n: secrets.private.n,
+                e: secrets.private.e,
+                d: secrets.private.d,
+                p: secrets.private.p,
+                q: secrets.private.q,
+                dp: secrets.private.dp,
+                dq: secrets.private.dq,
+                qi: secrets.private.qi,
                 alg: 'RS256',
                 kid: 'key-1',
                 use: 'sig'

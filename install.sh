@@ -32,6 +32,8 @@ CLIENT_DOMAIN="element.local"
 OIDC_DOMAIN="auth.local"
 SYNAPSE_DOMAIN="synapse.local"
 
+SYNAPSE_SERVER_NAME=$SYNAPSE_DOMAIN
+
 set -e
 
 docker_install() {
@@ -85,7 +87,7 @@ log() {
 
     if [[ -n $level ]]; then
         case $level in
-            "INFO" ) color="\033[0m";;  # Green
+            "INFO" ) color="\033[0m";;  # Default
             "WARN" ) color="\033[33m";;  # Yellow
             "ERROR" ) color="\033[31m";; # Red
             * ) color="\033[0m";;         # Default
@@ -102,8 +104,8 @@ set_production() {
 
 configure_hostnames() {
     read -p "Enter base domain: " client_domain
-    read -p "Enter OIDC subdomain: " oidc_domain
-    read -p "Enter Synapse subdomain: " synapse_domain
+    read -p "Enter OIDC domain: " oidc_domain
+    read -p "Enter Synapse domain: " synapse_domain
 
     CLIENT_DOMAIN=$client_domain
     OIDC_DOMAIN=$oidc_domain
@@ -112,14 +114,20 @@ configure_hostnames() {
 
 setup_hostnames() {
     log "Updating /etc/hosts with the following entries:"
-    log " - Client Domain: $CLIENT_DOMAIN"
-    log " - OIDC Domain: $OIDC_DOMAIN"
-    log " - Synapse Domain: $SYNAPSE_DOMAIN"
+    log " - Client Domain: \033[32m$CLIENT_DOMAIN\033[0m"
+    log " - OIDC Domain: \033[32m$OIDC_DOMAIN\033[0m"
+    log " - Synapse Domain: \033[32m$SYNAPSE_DOMAIN\033[0m"
 
     # TODO: Ask user if correct, if not run configure_hostnames function again
 
     # Backup the original /etc/hosts file
-    sudo cp /etc/hosts /etc/hosts.bak
+    file="/etc/hosts.bak"
+
+    if [ -f "$file" ]; then
+        log "Backup file $file already exists. Skipping backup."
+    else
+        sudo cp /etc/hosts /etc/hosts.bak
+    fi
 
     # Add host entries for the domains
     local domains=("$CLIENT_DOMAIN" "$OIDC_DOMAIN" "$SYNAPSE_DOMAIN")
@@ -144,10 +152,9 @@ setup_mkcert() {
         -key-file certs/privkey.pem \
         "$CLIENT_DOMAIN" "$OIDC_DOMAIN" "$SYNAPSE_DOMAIN"
 
+    log "Copying mkcert root CA certificate to certs/ and synapse/ directories..."
     cp $HOME/.local/share/mkcert/rootCA.pem certs/
     cp certs/rootCA.pem synapse
-
-    # TODO: To be verified
 }
 
 setup_certbot() {
@@ -156,12 +163,25 @@ setup_certbot() {
     log "Installing Certbot..."
     sudo apt install -y certbot
 
+    log "Obtaining SSL certificates..."
     sudo certbot certonly --standalone \
         -d $CLIENT_DOMAIN \
         -d $OIDC_DOMAIN \
         -d $SYNAPSE_DOMAIN
 
-    # TODO: To be verified
+    log "Setting up certificate symlinks..."
+    mkdir -p certs
+    sudo cp /etc/letsencrypt/live/$CLIENT_DOMAIN/fullchain.pem certs/fullchain.pem
+    sudo cp /etc/letsencrypt/live/$CLIENT_DOMAIN/privkey.pem certs/privkey.pem
+    sudo cp /etc/letsencrypt/live/$CLIENT_DOMAIN/chain.pem synapse/rootCA.pem
+
+    sudo chmod -r certs/fullchain.pem certs/privkey.pem synapse/rootCA.pem
+}
+
+update_synapse_server_name() {
+    read -p "Enter new Synapse server name: " server_name
+
+    SYNAPSE_SERVER_NAME=$server_name
 }
 
 echo "
@@ -180,14 +200,21 @@ sudo apt update
 sudo apt install -y ${PACKAGES_LIST[@]}
 
 # Docker installation
-prompt_user_confirm "Do you want to install Docker?" docker_install "" "Docker installed successfully."
+if command -v docker &> /dev/null; then
+    log "Docker is already installed: \033[32m$(docker --version)\033[0m"
+    prompt_user_confirm "Do you want to reinstall it?" docker_install "" "Docker installed successfully."
+else
+    log "Docker is not installed. Installing..."
+    docker_install
+    log "Docker installed successfully."
+fi
 
 # Host resolution
 log "Here's the default hostnames configuration for MatrixAIO services:"
-log " - Client Domain: $CLIENT_DOMAIN"
-log " - OIDC Domain: $OIDC_DOMAIN"
-log " - Synapse Domain: $SYNAPSE_DOMAIN"
-prompt_user_confirm "Do you want to configure hostnames for MatrixAIO services?" configure_hostnames "Hostnames configured successfully."
+log " - Client domain: \033[32m$CLIENT_DOMAIN\033[0m"
+log " - OIDC domain: \033[32m$OIDC_DOMAIN\033[0m"
+log " - Synapse domain: \033[32m$SYNAPSE_DOMAIN\033[0m"
+prompt_user_confirm "Do you want to configure hostnames for MatrixAIO services?" configure_hostnames "" "Hostnames configured successfully."
 setup_hostnames
 
 # Certificate setup
@@ -200,19 +227,37 @@ else
     setup_mkcert
 fi
 
-# TODO: Find a way to automate JWKS configuration setup for OIDC provider
 # TODO: Find a way to automate synapse configuration keys setup for config file
 
+# Pull latest images
+log "Pulling latest images..."
+docker compose pull
+
+log "Current Synapse server name is set to \033[32m$SYNAPSE_SERVER_NAME\033[0m."
+prompt_user_confirm "Would you like to change it?" update_synapse_server_name "" ""
+log "Synapse server name updated to \033[32m$SYNAPSE_SERVER_NAME\033[0m."
+
+# Generate Synapse configuration files
 log "Generating Synapse configuration files..."
 docker run -it --rm \
     --mount type=volume,src=matrix-aio_synapse_data,dst=/data \
-    -e SYNAPSE_SERVER_NAME=$SYNAPSE_DOMAIN \
+    -e SYNAPSE_SERVER_NAME=$SYNAPSE_SERVER_NAME \
     -e SYNAPSE_REPORT_STATS=no \
     matrixdotorg/synapse:latest generate
+
+# Build stack
+log "Building MatrixAIO stack..."
+docker compose build
+
+# Generate OIDC provider keys
+log "Generating OIDC provider keys..."
+docker compose run --no-deps --rm \
+    oidc node generate-keys.js
 
 # Create systemd service file for MatrixAIO
 log "Creating systemd service file for MatrixAIO..."
 sudo cp matrixaio.service /etc/systemd/system/matrixaio.service
+sudo systemctl daemon-reload
 enable_cmd="sudo systemctl enable matrixaio.service"
 prompt_user_confirm "Would you like to enable MatrixAIO service in order to start it at boot?" "$enable_cmd" "You can enable it later with '$enable_cmd'" "MatrixAIO service now enabled at boot startup."
 
