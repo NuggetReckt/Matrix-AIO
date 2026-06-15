@@ -11,9 +11,25 @@
 
 # Introduction
 
-This project provides a fully integrated internal messaging platform designed for Trimaran VFX. It combines a Matrix Synapse homeserver, a custom OpenID Connect (OIDC) provider, and a web client interface, all packaged for secure and controlled deployment within a private infrastructure.
+This project provides a fully integrated internal messaging platform designed for Trimaran VFX. It combines a Matrix Synapse homeserver with its PostgreSQL database, a custom OpenID Connect (OIDC) provider, and a web client interface, all packaged for secure and controlled deployment within a private infrastructure.
 
-# Getting Started
+# Quick start
+
+1. Configure as your liking the configuration files (please refer to the **[Project Structure section](#project-structure)**)
+
+  > [!IMPORTANT]
+  > Be careful if you change one or more service URL(s) or hostname(s), to also update:
+  > - network aliases in `docker-compose.yml`
+  > - Nginx server names in `nginx/nginx.conf`
+  > - Element base-url for the synapse matrix server in `element/config.json`
+  > - Synapse public_baseurl and issuer URL for the oidc provider in `synapse/homeserver.yaml`
+
+2. Simply run the install.sh script, do not forget do it as executable, and follow instructions:
+  ```bash
+  chmod +x install.sh && ./install.sh
+  ```
+
+# Manual installation
 ## 1. Host Resolution
 
 Ensure the required domains resolve correctly on your machine and within your network.
@@ -25,12 +41,12 @@ Edit your `/etc/hosts` file (or equivalent on Windows):
 127.0.0.1 element.local
 ```
 
-> [!IMPORTANT]  
-> If you update the hostnames in the /etc/hosts file, do not forget to also update:
-> - network aliases in docker compose
-> - Nginx server names in nginx/nginx.conf
-> - Element base-url for the synapse matrix server in element/config.json
-> - Synapse public_baseurl and issuer URL for the oidc provider
+> [!IMPORTANT]
+> If you update the hostnames in the `/etc/hosts` file, do not forget to also update:
+> - network aliases in `docker-compose.yml`
+> - Nginx server names in `nginx/nginx.conf`
+> - Element base-url for the synapse matrix server in `element/config.json`
+> - Synapse public_baseurl and issuer URL for the oidc provider in `synapse/homeserver.yaml`
 
 ## 2. Certificates
 
@@ -72,34 +88,12 @@ Edit your `/etc/hosts` file (or equivalent on Windows):
   - Redirect URIs
 
 3. Generate JWKs for the OIDC provider:
-  - in the `oidc/` directory, run the following command:
-    ```bash
-    node generate-keys.js
-    ```
-  - And copy/paste the returned values in the oidc configuration:
-    ```js
-    const configuration = {
-        // [...]
-        jwks: {
-            keys: [
-                {
-                    kty: 'RSA',
-                    n: '',
-                    e: '',
-                    d: '',
-                    p: '',
-                    q: '',
-                    dp: '',
-                    dq: '',
-                    qi: '',
-                    alg: 'RS256',
-                    kid: 'key-1',
-                    use: 'sig'
-                }
-            ]
-        }
-    };
-    ```
+  in the `oidc/` directory, run the following command:
+  ```bash
+  node generate-keys.js
+  ```
+  This will create a secrets.json file.
+
 
 4. Generate synapse configuration files:
   ```bash
@@ -125,14 +119,17 @@ docker compose up --build -d
 
 Services included:
 - Synapse (Matrix homeserver)
+- PostgreSQL (database for Synapse)
 - OIDC Provider (authentication service)
-- NGINX (reverse proxy with HTTPS)
+- Nginx (reverse proxy with HTTPS)
 - Element Web (client interface)
 
 # Project Structure
 ```
 .
 ├── docker-compose.yml
+├── install.sh
+├── matrixaio.service
 ├── synapse/
 │   ├── Dockerfile
 │   ├── homeserver.yaml
@@ -141,7 +138,11 @@ Services included:
 │   │   └── on_register.py
 ├── oidc/
 │   ├── Dockerfile
-│   ├── index.js
+│   ├── src/
+│   │   ├── index.js
+│   │   ├── renderer.js
+│   │   └── fileAdapter.js
+│   ├── assets/
 ├── nginx/
 │   ├── auth.conf
 │   ├── matrix.conf
