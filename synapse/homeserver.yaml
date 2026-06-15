@@ -7,8 +7,8 @@
 # Trimaran VFX 2026 - Corto Morrow
 # homeserver.yaml - Synapse configuration file
 
-server_name: "matrix.local"
-public_baseurl: "https://matrix.local/"
+server_name: "synapse.local"
+public_baseurl: "https://synapse.local/"
 pid_file: /data/homeserver.pid
 listeners:
   - bind_addresses:
@@ -24,15 +24,20 @@ listeners:
     type: http
     x_forwarded: true
 database:
-  name: sqlite3
+  name: psycopg2
   args:
-    database: /data/homeserver.db
-log_config: "/data/matrix.local.log.config"
+    user: user
+    password: password
+    dbname: synapse
+    host: db
+    cp_min: 5
+    cp_max: 10
+log_config: "/data/synapse.local.log.config"
 media_store_path: /data/media_store
 registration_shared_secret: "<registration_shared_secret>"
 macaroon_secret_key: "<macaroon_secret_key>"
 form_secret: "<form_secret>"
-signing_key_path: "/data/matrix.local.signing.key"
+signing_key_path: "/data/synapse.local.signing.key"
 trusted_key_servers:
   - server_name: "matrix.org"
 report_stats: false
@@ -70,5 +75,9 @@ oidc_providers:
         display_name_template: "{{ user.preferred_username }}"
         email_template: "{{ user.email }}"
 
+modules:
+  - module: on_register.OnRegisterWebhook
+    config:
+      webhook_url: "https://dev-fxmanager.trimaran.com/webhook/on_register"
 
 # vim:ft=yaml

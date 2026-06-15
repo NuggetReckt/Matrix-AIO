@@ -17,18 +17,24 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./certs:/certs:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fSs", "http://localhost/healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
     depends_on:
       synapse:
         condition: service_healthy
-      element:
-        condition: service_started
       oidc:
+        condition: service_started
+      element:
         condition: service_started
     networks:
       matrix:
         aliases:
           - auth.local
-          - matrix.local
+          - synapse.local
           - element.local
 
   synapse:
@@ -36,12 +42,18 @@ services:
     container_name: synapse
     volumes:
       - ./synapse/homeserver.yaml:/data/synapse.yaml:ro
+      - ./synapse/modules/:/modules
       - synapse_data:/data
     environment:
       - SYNAPSE_REPORT_STATS=no
       - SYNAPSE_CONFIG_PATH=/data/synapse.yaml
+      - PYTHONPATH=/modules
     networks:
       - matrix
+      - synapse
+    depends_on:
+      db:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fSs", "http://localhost:8008/health"]
       interval: 15s
@@ -49,6 +61,27 @@ services:
       retries: 3
       start_period: 5s
 
+  db:
+    image: postgres:18-alpine
+    restart: on-failure
+    container_name: db
+    environment:
+      - POSTGRES_PORT=5432
+      - POSTGRES_HOST=db
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=synapse
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale=C
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
+    volumes:
+      - db_data:/var/lib/postgresql
+    networks:
+      - synapse
 
   element:
     image: vectorim/element-web:latest
@@ -60,29 +93,34 @@ services:
     depends_on:
       synapse:
         condition: service_healthy
+      oidc:
+        condition: service_started
     networks:
       - matrix
 
   oidc:
     build: ./oidc
     container_name: oidc
-    depends_on:
-      synapse:
-        condition: service_healthy
     volumes:
       - ./certs:/app/certs:ro
       - provider_data:/app/data
     environment:
-      - OIDC_SYNAPSE_BASEURL=https://api.dev-matrix.trimaran.com
-      - OIDC_PROVIDER_BASEURL=https://auth.dev-matrix.trimaran.com
+#      - OIDC_SYNAPSE_BASEURL=https://api.dev-matrix.trimaran.com
+#      - OIDC_PROVIDER_BASEURL=https://auth.dev-matrix.trimaran.com
       - OIDC_FXMANAGER_BASEURL=https://dev-fxmanager.trimaran.com
+      - OIDC_SYNAPSE_BASEURL=https://synapse.local
+      - OIDC_PROVIDER_BASEURL=https://auth.local
+      - OIDC_DEBUG=false
     networks:
       - matrix
 
 networks:
   matrix:
     name: matrix
+  synapse:
+    name: synapse
 
 volumes:
   synapse_data:
+  db_data:
   provider_data:
