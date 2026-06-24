@@ -43,9 +43,13 @@ trusted_key_servers:
 report_stats: false
 enable_registration_without_verification: false
 enable_registration: false
+forget_rooms_on_leave: true
 suppress_key_server_warning: true
 enable_media_repo: true
 max_upload_size: 50M
+media_retention:
+  local_media_lifetime: 60d
+  remote_media_lifetime: 14d
 
 # MatrixRTC / Element Call configuration
 experimental_features:

@@ -28,6 +28,8 @@ DOCKER_PKGS_LIST=(
 
 PRODUCTION=false
 
+SERVICE_STARTED=false
+
 CLIENT_DOMAIN="element.local"
 OIDC_DOMAIN="auth.local"
 SYNAPSE_DOMAIN="synapse.local"
@@ -53,6 +55,12 @@ EOF
 
     sudo apt update
     sudo apt install ${DOCKER_PKGS_LIST[@]}
+}
+
+clean() {
+    log "Cleaning up old Docker containers, images and volumes..."
+    docker compose down --rmi all -v
+    log "Cleanup completed."
 }
 
 prompt_user_confirm() {
@@ -184,6 +192,91 @@ update_synapse_server_name() {
     SYNAPSE_SERVER_NAME=$server_name
 }
 
+start_service() {
+    log "Starting MatrixAIO service..."
+    sudo systemctl start matrixaio.service
+    SERVICE_STARTED=true
+}
+
+create_synapse_admin_user() {
+    read -s -p "Enter password for the administrator user: " admin_password
+    echo
+    read -s -p "Confirm password: " confirm_password
+
+    echo "pw: $admin_password"
+    echo "confirm: $confirm_password"
+
+    if [ "$admin_password" != "$confirm_password" ]; then
+        log "WARN" "Passwords do not match. Please try again."
+        create_synapse_admin_user true
+    fi
+
+    if [[ "$1" == "true" ]]; then
+        return
+    fi
+
+    docker exec -it synapse register_new_matrix_user \
+        -u admin \
+        -p $admin_password \
+        -a \
+        -c /data/synapse.yaml \
+        http://localhost:8008
+
+    log "Admin user created successfully."
+}
+
+post_install_setup() {
+    local services=(nginx synapse db element oidc)
+    local timeout=120
+    local elapsed=0
+    local interval=5
+
+    log "Running post-installation setup..."
+
+    log "Waiting for all MatrixAIO containers to be running (timeout: ${timeout}s)..."
+    for service in "${services[@]}"; do
+        while true; do
+            local state
+            state=$(docker inspect -f '{{.State.Running}}' "$service" 2>/dev/null || echo -n "missing")
+            if [[ "$state" == "true" ]]; then
+                break
+            fi
+            if (( elapsed >= timeout )); then
+                log "ERROR" "Timed out waiting for container '$service' to start (last state: $state). Aborting post-install setup."
+                return 1
+            fi
+            log "Container '$service' state: $state. Waiting..."
+            sleep $interval
+            elapsed=$((elapsed + interval))
+        done
+    done
+
+    elapsed=0
+    log "Waiting for Synapse to become healthy (timeout: ${timeout}s)..."
+    while true; do
+        local health
+        health=$(docker inspect -f '{{.State.Health.Status}}' synapse 2>/dev/null || echo -n "unknown")
+
+        case $health in
+            "healthy" )
+                break;;
+            "unhealthy" )
+                log "ERROR" "Synapse reported \033[31munhealthy\033[0m. Aborting post-install setup."
+                return 1;;
+            * )
+                if (( elapsed >= timeout )); then
+                    log "ERROR" "Timed out waiting for Synapse to become healthy (last status: $health)."
+                    return 1
+                fi
+                log "Synapse status: $health. Waiting..."
+                sleep $interval
+                elapsed=$((elapsed + interval));;
+        esac
+    done
+
+    create_synapse_admin_user
+}
+
 echo "
                             _|                _|                          _|
 _|_|_|  _|_|      _|_|_|  _|_|_|_|  _|  _|_|      _|    _|        _|_|_|        _|_|
@@ -208,6 +301,9 @@ else
     docker_install
     log "Docker installed successfully."
 fi
+
+# Cleanup
+clean
 
 # Host resolution
 log "Here's the default hostnames configuration for MatrixAIO services:"
@@ -247,7 +343,7 @@ docker run -it --rm \
 
 # Build stack
 log "Building MatrixAIO stack..."
-docker compose build
+docker compose build -q
 
 # Generate OIDC provider keys
 log "Generating OIDC provider keys..."
@@ -258,16 +354,19 @@ docker compose run --no-deps --rm \
 log "Creating systemd service file for MatrixAIO..."
 sudo cp matrixaio.service /etc/systemd/system/matrixaio.service
 sudo systemctl daemon-reload
+sudo systemctl stop matrixaio.service
 enable_cmd="sudo systemctl enable matrixaio.service"
 prompt_user_confirm "Would you like to enable MatrixAIO service in order to start it at boot?" "$enable_cmd" "You can enable it later with '$enable_cmd'" "MatrixAIO service now enabled at boot startup."
 
 # Start the MatrixAIO service
-log "Starting MatrixAIO service..."
-start_cmd="sudo systemctl start matrixaio.service"
-prompt_user_confirm "Do you want to start the MatrixAIO service now?" "$start_cmd" "You can start it later with '$start_cmd'" "Service started successfully."
+prompt_user_confirm "Do you want to start the MatrixAIO service now?" start_service "You can start it later with 'sudo systemctl start matrixaio.service'" "MatrixAIO service started successfully."
 
-# TODO: Post install setup:
-# - Add admin user for synapse with custom password
-# - ?
+# Post install setup
+if [ "$SERVICE_STARTED" = true ]; then
+    post_install_setup
+else
+    log "WARN" "MatrixAIO service is not running. Skipping post-install setup."
+fi
+
 
 log "MatrixAIO installation completed successfully!"
