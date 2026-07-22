@@ -33,6 +33,7 @@ SERVICE_STARTED=false
 CLIENT_DOMAIN="element.local"
 OIDC_DOMAIN="auth.local"
 SYNAPSE_DOMAIN="synapse.local"
+LIVEKIT_DOMAIN="livekit.local"
 
 SYNAPSE_SERVER_NAME=$SYNAPSE_DOMAIN
 
@@ -114,10 +115,12 @@ configure_hostnames() {
     read -p "Enter base domain: " client_domain
     read -p "Enter OIDC domain: " oidc_domain
     read -p "Enter Synapse domain: " synapse_domain
+    read -p "Enter LiveKit domain: " livekit_domain
 
     CLIENT_DOMAIN=$client_domain
     OIDC_DOMAIN=$oidc_domain
     SYNAPSE_DOMAIN=$synapse_domain
+    LIVEKIT_DOMAIN=$livekit_domain
 }
 
 setup_hostnames() {
@@ -125,6 +128,7 @@ setup_hostnames() {
     log " - Client Domain: \033[32m$CLIENT_DOMAIN\033[0m"
     log " - OIDC Domain: \033[32m$OIDC_DOMAIN\033[0m"
     log " - Synapse Domain: \033[32m$SYNAPSE_DOMAIN\033[0m"
+    log " - LiveKit Domain: \033[32m$LIVEKIT_DOMAIN\033[0m"
 
     # TODO: Ask user if correct, if not run configure_hostnames function again
 
@@ -138,7 +142,7 @@ setup_hostnames() {
     fi
 
     # Add host entries for the domains
-    local domains=("$CLIENT_DOMAIN" "$OIDC_DOMAIN" "$SYNAPSE_DOMAIN")
+    local domains=("$CLIENT_DOMAIN" "$OIDC_DOMAIN" "$SYNAPSE_DOMAIN" "$LIVEKIT_DOMAIN")
 
     for domain in "${domains[@]}"; do
         if grep -qF "$domain" /etc/hosts; then
@@ -158,7 +162,7 @@ setup_mkcert() {
     mkcert \
         -cert-file certs/fullchain.pem \
         -key-file certs/privkey.pem \
-        "$CLIENT_DOMAIN" "$OIDC_DOMAIN" "$SYNAPSE_DOMAIN"
+        "$CLIENT_DOMAIN" "$OIDC_DOMAIN" "$SYNAPSE_DOMAIN" "$LIVEKIT_DOMAIN"
 
     log "Copying mkcert root CA certificate to certs/ and synapse/ directories..."
     cp $HOME/.local/share/mkcert/rootCA.pem certs/
@@ -175,7 +179,8 @@ setup_certbot() {
     sudo certbot certonly --standalone \
         -d $CLIENT_DOMAIN \
         -d $OIDC_DOMAIN \
-        -d $SYNAPSE_DOMAIN
+        -d $SYNAPSE_DOMAIN \
+        -d $LIVEKIT_DOMAIN
 
     log "Setting up certificate symlinks..."
     mkdir -p certs
@@ -310,6 +315,7 @@ log "Here's the default hostnames configuration for MatrixAIO services:"
 log " - Client domain: \033[32m$CLIENT_DOMAIN\033[0m"
 log " - OIDC domain: \033[32m$OIDC_DOMAIN\033[0m"
 log " - Synapse domain: \033[32m$SYNAPSE_DOMAIN\033[0m"
+log " - LiveKit domain: \033[32m$LIVEKIT_DOMAIN\033[0m"
 prompt_user_confirm "Do you want to configure hostnames for MatrixAIO services?" configure_hostnames "" "Hostnames configured successfully."
 setup_hostnames
 

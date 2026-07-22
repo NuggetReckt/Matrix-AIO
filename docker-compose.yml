@@ -136,7 +136,7 @@ services:
       - LIVEKIT_URL=wss://livekit.local/livekit/sfu
       - LIVEKIT_KEY=secret
       - LIVEKIT_SECRET=secret
-      - LIVEKIT_JWT_BIND=8080
+      - LIVEKIT_JWT_BIND=:8080
       - LIVEKIT_FULL_ACCESS_HOMESERVERS=synapse.local
     networks:
       - matrix
