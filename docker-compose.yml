@@ -36,6 +36,7 @@ services:
           - auth.local
           - synapse.local
           - element.local
+          - livekit.local
 
   synapse:
     build: ./synapse
@@ -111,6 +112,32 @@ services:
       - OIDC_SYNAPSE_BASEURL=https://synapse.local
       - OIDC_PROVIDER_BASEURL=https://auth.local
       - OIDC_DEBUG=false
+    networks:
+      - matrix
+
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: livekit
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml
+    volumes:
+      - ./livekit/livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "7881:7881/tcp"
+      - "50100-50200:50100-50200/udp"
+    networks:
+      - matrix
+
+  lk-jwt-service:
+    image: ghcr.io/element-hq/lk-jwt-service:latest
+    container_name: lk-jwt-service
+    restart: unless-stopped
+    environment:
+      - LIVEKIT_URL=wss://livekit.local/livekit/sfu
+      - LIVEKIT_KEY=secret
+      - LIVEKIT_SECRET=secret
+      - LIVEKIT_JWT_BIND=:8080
+      - LIVEKIT_FULL_ACCESS_HOMESERVERS=synapse.local
     networks:
       - matrix
 
