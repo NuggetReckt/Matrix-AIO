@@ -55,6 +55,13 @@ media_retention:
 experimental_features:
   msc3266_enabled: true
   msc4222_enabled: true
+  msc4143_enabled: true
+  msc4140_enabled: true
+
+matrix_rtc:
+  transports:
+    - type: livekit
+      livekit_service_url: "https://livekit.local/livekit/jwt"
 
 max_event_delay_duration: 24h
 
@@ -75,7 +82,7 @@ oidc_providers:
     scopes: ["openid", "profile", "email"]
     user_mapping_provider:
       config:
-        localpart_template: "{{ user.preferred_username }}"
+        localpart_template: "{{ user.sub }}"
         display_name_template: "{{ user.preferred_username }}"
         email_template: "{{ user.email }}"
 

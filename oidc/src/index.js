@@ -212,13 +212,13 @@ app.route('/interaction/:uid')
                     return res.redirect(`/interaction/${uid}?error=invalid_credentials&email=${encodeURIComponent(req.body.email || '')}`);
                 }
 
+                const accountId = authResponse.id;
                 const accountEmail = authResponse.email || req.body.email;
-                const preferredUsername = emailToMatrixLocalpart(authResponse.username || accountEmail);
-                const accountId = preferredUsername;
+                const username = authResponse.username || emailToMatrixLocalpart(accountEmail);
 
                 accountCache.set(accountId, {
                     email: accountEmail,
-                    username: preferredUsername,
+                    username: username,
                 });
 
                 return provider.interactionFinished(req, res, {

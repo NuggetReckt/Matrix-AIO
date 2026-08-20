@@ -6,6 +6,15 @@
         }
     },
     "brand": "Element",
+    "branding": {
+        "welcome_background_url": "https://auth.local/assets/img/background.jpg",
+        "auth_header_logo_url": "https://auth.local/assets/img/favicon.svg",
+        "logo_link_url": "https://trimaran.com",
+        "auth_footer_links": [
+            { "text": "Wiki", "url": "https://fxmanager.trimaran.com/wiki/?action=view_folder&id=140" },
+            { "text": "Contact", "url": "https://trimaran.com/contact" }
+        ]
+    },
     "disable_guests": true,
     "default_theme": "dark",
     "disable_login_language_selector": true,

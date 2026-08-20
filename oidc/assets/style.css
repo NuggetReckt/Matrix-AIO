@@ -27,6 +27,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    background: no-repeat center center fixed url("/assets/img/background.jpg");
+    background-size: cover;
     background-color: var(--background-color);
     font-family: Verdana, Arial, sans-serif;
 }
